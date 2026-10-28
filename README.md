@@ -80,7 +80,11 @@ What the colors mean:
 
 The bar at the bottom shows what is going on: green when the robot moves, blue when it plans, red when the route is blocked, and yellow when it is waiting or has reached the goal.
 
-One thing to be clear about: in this random test, the robot and the moving block are simulated in the testbench. Only the BFS part is my hardware. On the board, the top level still supports just the one SW2 obstacle.
+One thing to be clear about: in this random test, the robot and the moving block are simulated in the testbench. Only the BFS part is my hardware. On the board, the UART top level supports just the one SW2 obstacle. The Ethernet version (further down) also lets me click walls into the grid from the laptop.
+
+And this one is not a simulation: it is the real Nexys 3 running the Ethernet version, with the laptop viewer drawing what the board sends back. I click cells to drop walls on the robot's route, and the FPGA plans a new route each time from where the robot is. The video is sped up 4x.
+
+<img src="docs/board_demo_lan.gif" width="480" alt="Real Nexys 3 board replanning around walls clicked in the LAN viewer">
 
 ## Running it on the Nexys 3
 
@@ -98,3 +102,41 @@ SW0 and SW1 pick the starting map for the next run: both off is empty, SW0 on is
 Some details: the clock is 100 MHz, the UART is 115200 baud 8N1, and the button debounce is about 10 ms. The switches on this board read low when they are on, so the code inverts them. Each update over UART is 21 bytes: A5, robot cell, found flag, route length, number of explored cells, 8 bytes of obstacle map, and 8 bytes of route map (little endian). In live mode the PC only draws what the FPGA sends. It does not compute any path itself.
 
 Board reference manual: https://digilent.com/reference/_media/nexys%3Anexys3%3Anexys3_rm.pdf
+
+## Ethernet (LAN) version, for when there is no UART cable
+
+When working on this project I faced a problem. Micro USB cables I have cannot carry data load. So, when I connected UART port, it was not recognizable. So, I took another approach, by using LAN port available in NEXYS 3 board. This port has been used to get the visuals and also send changing constrains location. There is a second top level, rtl/nexys3_top_lan.v, that does the same planning but sends each update out of the RJ-45 port instead of the UART. The UART files above are unchanged, so either bitstream can be built.
+
+The board's Ethernet chip (SMSC LAN8710A) talks to the FPGA over MII. rtl/eth_udp_tx.v builds a complete Ethernet frame in hardware: preamble, a UDP/IPv4 broadcast header (from 192.168.10.2 to 255.255.255.255, port 5005), the same 21-byte packet the UART version sends, and the Ethernet CRC. It does not answer ARP or DHCP. The FPGA also resends the current state about twice a second, so the viewer can be started at any time. It also listens: rtl/eth_udp_rx.v receives cell edits from the PC on UDP port 5006 (payload 5A, 1 to add or 0 to remove, cell number), checks the Ethernet CRC, and ignores everything else. In the viewer, click a cell to add or remove a wall there. A new wall on the remaining route makes the robot replan from where it is, just like SW2. If the robot is stuck with no route, removing a wall makes it plan again. Clicks on the start, the goal, or the robot's own cell are ignored. Clicked walls stay for the next BTNU run, on top of the SW0/SW1 map. The viewer only draws a wall once the FPGA reports it back.
+
+The LEDs are different from the UART version:
+
+- LD1 LD0 show where the robot is: 00 at the start (waiting for BTNU), 01 running (planning or moving), 11 reached the goal, 10 stopped with no route.
+- LD2 is on while BFS is planning.
+- LD3 flips each time a frame goes out.
+- LD4 is on once the Ethernet PHY is out of reset, LD5 blinks when the PHY's TX_CLK is running, and LD6 blinks when the 100 MHz clock is running. These are for checking the board's Ethernet chip during bring-up.
+
+Simulation (it acts as the PHY, checks the preamble, CRC, IP checksum and UDP header of every frame, and writes them to sim/lan_frames.txt; it also sends clicks into the FPGA, including a bad-CRC and a wrong-port frame that must be ignored):
+
+```sh
+iverilog -g2012 -Wall -s tb_nexys3_lan -o sim/lan.out rtl/neighbor_check.v rtl/bfs_engine.v rtl/eth_udp_tx.v rtl/eth_udp_rx.v rtl/nexys3_top_lan.v tb/tb_nexys3_lan.v
+vvp sim/lan.out
+```
+
+Building it in ISE:
+
+1. Make a separate ISE project (same XC6SLX16-CSG324 part) with nexys3_top_lan as the top module.
+2. Add rtl/neighbor_check.v, rtl/bfs_engine.v, rtl/eth_udp_tx.v, rtl/eth_udp_rx.v, rtl/nexys3_top_lan.v and constraints/nexys3_lan.ucf. Make sure the UCF shows up under nexys3_top_lan in the Design panel; without it ISE places the pins anywhere and nothing works.
+3. Right-click Generate Programming File > Process Properties. Under Startup Options, set "FPGA Start-Up Clock" to JTAG Clock. Under Configuration Options, set "Unused IOB Pins" to Float. The PHY reads its mode from its RX pins when it comes out of reset, and the default pull-downs on unused FPGA pins can put it into the wrong mode.
+4. Generate the bitstream and program nexys3_top_lan.bit.
+
+On the Mac:
+
+1. Connect the board's RJ-45 port to the Mac with a normal Ethernet cable (a USB or Thunderbolt Ethernet adapter if the Mac has no port). No router is needed.
+2. Run `tools/mac_lan_setup.sh` to list the network services, then for example `tools/mac_lan_setup.sh "USB 10/100/1000 LAN"` to give that port the address 192.168.10.1. Use `... dhcp` to undo it. This step is optional, but it keeps the wired port off the 169.254 auto address.
+3. Run `python3 tools/lan_viewer.py` for the grid window, or `python3 tools/lan_viewer.py --text` to print the packets. If macOS asks whether Python may accept incoming connections, allow it. If the window stays at "Waiting", the firewall is blocking that Python: `sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp "$(python3 -c 'import sys; print(sys.executable)')"`.
+4. Press BTNU and use the switches as in the UART version, or click cells in the window to add and remove walls.
+
+If the Mac's Ethernet is a USB adapter and you also run a VM in UTM, do not pass the adapter to the VM (only the Digilent board). Otherwise macOS loses the wired port.
+
+If nothing shows up, check the raw frames with `sudo tcpdump -i en5 -e -XX ether src 02:00:00:00:00:01` (use your adapter's name from step 2). If tcpdump sees frames but the viewer does not, the macOS firewall is blocking Python. If tcpdump sees nothing, check that the link LEDs on the RJ-45 jack are on and that LED3 on the board is changing.
