@@ -1,0 +1,98 @@
+#VRML_SIM R2025a utf8
+# Phase 2 world: an 8x8 grid arena (cells 0.15 m, 1.2 m square) seen by a
+# fixed overhead depth camera. Cell 0 is the north-west corner (+y, -x),
+# cell 63 the south-east corner. Column grows with +x, row grows with -y.
+# Walls and the timed obstacle are placed by the overhead_camera supervisor.
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/45dc6873b06b04de5edfab04c7d82f72cc0653ca/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/45dc6873b06b04de5edfab04c7d82f72cc0653ca/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/45dc6873b06b04de5edfab04c7d82f72cc0653ca/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/45dc6873b06b04de5edfab04c7d82f72cc0653ca/projects/robots/gctronic/e-puck/protos/E-puck.proto"
+
+WorldInfo {
+  info [
+    "FPGA hardware-in-the-loop path planner, Phase 2"
+  ]
+  basicTimeStep 16
+}
+Viewpoint {
+  orientation 0.5 0.5 -0.7071 1.7
+  position 0 1.9 2.1
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+  floorSize 1.2 1.2
+  floorTileSize 0.3 0.3
+  wallHeight 0.04
+}
+# Goal marker on cell 63. Flat, so the depth camera does not see it.
+Solid {
+  translation 0.525 -0.525 0.001
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.85 0.1
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 0.13 0.13 0.002
+      }
+    }
+  ]
+  name "goal marker"
+}
+# Starts on cell 0, facing east (+x).
+DEF EPUCK E-puck {
+  translation -0.525 0.525 0
+  controller "epuck_bridge"
+  turretSlot [
+    # The turret slot sits 9.5 mm behind the wheel axle; shift the GPS
+    # forward so it reports the robot's centre.
+    Pose {
+      translation 0.0095 0 0
+      children [
+        GPS {
+        }
+      ]
+    }
+    Compass {
+    }
+    Receiver {
+      name "depth receiver"
+      channel 2
+    }
+  ]
+}
+# Fixed overhead depth camera, 3 m above the floor centre, looking straight
+# down. Image top is +y (grid row 0), image right is +x (grid column 0..7).
+# The field of view covers exactly the 1.2 m floor, so each 8x8 pixel block
+# of the 64x64 image is one grid cell.
+Robot {
+  name "overhead rig"
+  controller "overhead_camera"
+  supervisor TRUE
+  children [
+    Pose {
+      translation 0 0 3
+      rotation -0.57735 0.57735 0.57735 2.0944
+      children [
+        RangeFinder {
+          name "depth camera"
+          fieldOfView 0.394791
+          width 64
+          height 64
+          minRange 0.5
+          maxRange 4
+        }
+      ]
+    }
+    Emitter {
+      name "depth emitter"
+      channel 2
+    }
+  ]
+}

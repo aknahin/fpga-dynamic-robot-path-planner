@@ -1,0 +1,41 @@
+# ---- Private / local only -------------------------------------------------
+# Personal tutorial book (not part of the project)
+tutorial/
+# Private AI-agent notes, instructions and handoff files
+ai-agent-prvt-dir/
+
+# ---- Generated output (rebuilt by the scripts, never committed) ------------
+# Simulation outputs, recordings, test vectors, logs
+sim/*
+!sim/.gitkeep
+bfs/sim/
+logs/
+*.vcd
+*.out
+*.npz
+# Videos: the demo is on YouTube (see README); full-length files are too big for git
+*.mp4
+*.mov
+*.MOV
+media/extra/
+# Generated Webots worlds (webots/make_world.py writes them)
+webots/worlds/warehouse.wbt
+webots/worlds/warehouse_test.wbt
+# Snapshots of earlier design iterations (kept locally as evidence)
+archive_layout_v1/
+archive_lanes_a/
+rtl/archive/
+# ISE build products (only the final reports and bitstream in artifacts/ are kept)
+build/
+*.ngc
+*.ngd
+*.ncd
+*.pcf
+
+# ---- Editor / OS noise ------------------------------------------------------
+.DS_Store
+__pycache__/
+*.pyc
+.vscode/
+.claude/
+.codegraph/

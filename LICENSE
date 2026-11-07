@@ -1,0 +1,30 @@
+Copyright (c) 2026 aknahin. All rights reserved.
+
+This repository and everything in it (source code, Verilog designs, scripts,
+documentation, figures, images, videos and the book) is the original work of
+the copyright holder, created as a personal academic project.
+
+No license or permission is granted to anyone. In particular, without prior
+written permission from the copyright holder, you may NOT:
+
+  - copy, reproduce or redistribute this work or any part of it;
+  - publish, post, upload or display it in any medium, in whole or in part;
+  - modify it or create derivative works from it;
+  - use it, or any part of it, for commercial or non-commercial purposes
+    other than reading it;
+  - submit it, or any part of it, as your own work, or to any course,
+    competition, publication or application.
+
+Viewing this repository for the purpose of evaluating the author's work
+(for example, by an admissions committee) is permitted.
+
+Third-party material that may be referenced by this project keeps its own
+licenses and is not covered by this notice: the Webots simulator and its
+standard library (Cyberbotics), the Xilinx ISE tools, the Icarus Verilog
+simulator, and the Digilent Nexys 3 reference constraints (pin names and
+locations).
+
+THIS WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+To ask for permission, contact the copyright holder through their GitHub
+profile.

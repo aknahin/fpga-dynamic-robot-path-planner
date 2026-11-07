@@ -1,0 +1,40 @@
+# Constraints for nexys3_top_ff (flow-field warehouse robot). Same pins and clocks as
+# nexys3_hil.ucf: the top level has the same ports.
+# Same pins as nexys3_lan.ucf, without the button and switches.
+# Pins are from the Digilent Nexys3_Master.ucf (SMSC LAN8710A PHY in MII mode).
+NET "clk" LOC = "V10" | IOSTANDARD = LVCMOS33;
+NET "clk" TNM_NET = "sys_clk";
+TIMESPEC "TS_sys_clk" = PERIOD "sys_clk" 10 ns HIGH 50%;
+NET "led[0]" LOC = "U16" | IOSTANDARD = LVCMOS33;
+NET "led[1]" LOC = "V16" | IOSTANDARD = LVCMOS33;
+NET "led[2]" LOC = "U15" | IOSTANDARD = LVCMOS33;
+NET "led[3]" LOC = "V15" | IOSTANDARD = LVCMOS33;
+NET "led[4]" LOC = "M11" | IOSTANDARD = LVCMOS33;
+NET "led[5]" LOC = "N11" | IOSTANDARD = LVCMOS33;
+NET "led[6]" LOC = "R11" | IOSTANDARD = LVCMOS33;
+
+NET "phy_tx_clk" LOC = "L5" | IOSTANDARD = LVCMOS33;
+NET "phy_tx_clk" TNM_NET = "phy_tx_clk";
+TIMESPEC "TS_phy_tx_clk" = PERIOD "phy_tx_clk" 40 ns HIGH 50%;
+NET "phy_txd[0]" LOC = "U2" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+NET "phy_txd[1]" LOC = "U1" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+NET "phy_txd[2]" LOC = "T2" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+NET "phy_txd[3]" LOC = "T1" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+NET "phy_tx_en" LOC = "L2" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+NET "phy_tx_er" LOC = "P2" | IOSTANDARD = LVCMOS33;
+NET "phy_rstn" LOC = "P3" | IOSTANDARD = LVCMOS33;
+NET "phy_mdc" LOC = "M5" | IOSTANDARD = LVCMOS33;
+
+NET "phy_rx_clk" LOC = "H4" | IOSTANDARD = LVCMOS33;
+NET "phy_rx_clk" TNM_NET = "phy_rx_clk";
+TIMESPEC "TS_phy_rx_clk" = PERIOD "phy_rx_clk" 40 ns HIGH 50%;
+NET "phy_rxd[0]" LOC = "P1" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+NET "phy_rxd[1]" LOC = "N2" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+NET "phy_rxd[2]" LOC = "N1" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+NET "phy_rxd[3]" LOC = "M3" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+NET "phy_rx_dv" LOC = "L1" | IOSTANDARD = LVCMOS33 | IOB = TRUE;
+
+# Data crosses between clk and the PHY clocks through toggle handshakes.
+TIMESPEC "TS_clk_to_phy" = FROM "sys_clk" TO "phy_tx_clk" TIG;
+TIMESPEC "TS_phy_to_clk" = FROM "phy_tx_clk" TO "sys_clk" TIG;
+TIMESPEC "TS_rx_to_clk" = FROM "phy_rx_clk" TO "sys_clk" TIG;

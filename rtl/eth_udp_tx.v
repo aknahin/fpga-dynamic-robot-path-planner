@@ -2,19 +2,21 @@
 module eth_udp_tx #(parameter [47:0] SRC_MAC=48'h02_00_00_00_00_01,
                     parameter [31:0] SRC_IP={8'd192,8'd168,8'd10,8'd2},
                     parameter [31:0] DST_IP=32'hffffffff,
-                    parameter [15:0] UDP_PORT=16'd5005)(
-    input wire clk, send, input wire [167:0] payload, output wire ready,
+                    parameter [15:0] UDP_PORT=16'd5005,
+                    parameter PAYLOAD_BYTES=21)(
+    input wire clk, send, input wire [PAYLOAD_BYTES*8-1:0] payload, output wire ready,
     input wire mii_tx_clk, output reg [3:0] mii_txd=0, output reg mii_tx_en=0,
     output reg sent_toggle=0);
-    // Sends the 21-byte payload as one UDP broadcast frame over MII
+    // Sends the PAYLOAD_BYTES payload as one UDP broadcast frame over MII
     // (TX only, no ARP). payload[7:0] is the first byte on the wire.
+    // Phase 1 uses the default 21 bytes, Phase 2 (B5 replies) uses 24.
     // MII sends the low nibble of each byte first; TX_CLK comes from the PHY
     // (25 MHz at 100 Mb/s, 2.5 MHz at 10 Mb/s).
 
     // clk side: hold the payload until the TX_CLK side acknowledges it.
     reg req=0;
     reg [1:0] ack_sync=0;
-    reg [167:0] held=0;
+    reg [PAYLOAD_BYTES*8-1:0] held=0;
     reg ack=0;
     assign ready=req==ack_sync[1];
     always @(posedge clk) begin
@@ -24,7 +26,8 @@ module eth_udp_tx #(parameter [47:0] SRC_MAC=48'h02_00_00_00_00_01,
 
     // Header: Ethernet (14) + IPv4 (20) + UDP (8) = 42 bytes, written
     // first-byte-first, then reversed so byte 0 sits in bits [7:0].
-    localparam [15:0] IP_LEN=16'd49, UDP_LEN=16'd29;
+    localparam [15:0] IP_LEN=28+PAYLOAD_BYTES, UDP_LEN=8+PAYLOAD_BYTES;
+    localparam DATA_NIBBLES=(42+PAYLOAD_BYTES)*2;
     wire [19:0] ip_sum=16'h4500+IP_LEN+16'h4000+16'h4011+
         SRC_IP[31:16]+SRC_IP[15:0]+DST_IP[31:16]+DST_IP[15:0];
     wire [16:0] ip_fold=ip_sum[15:0]+ip_sum[19:16];
@@ -52,9 +55,9 @@ module eth_udp_tx #(parameter [47:0] SRC_MAC=48'h02_00_00_00_00_01,
     localparam IDLE=0, PREAMBLE=1, DATA=2, FCS=3, GAP=4;
     reg [2:0] state=IDLE;
     reg [1:0] req_sync=0;
-    reg [503:0] shift=0;
+    reg [(42+PAYLOAD_BYTES)*8-1:0] shift=0;
     reg [31:0] crc=0;
-    reg [6:0] count=0;
+    reg [7:0] count=0;
     always @(posedge mii_tx_clk) begin
         req_sync<={req_sync[0],req};
         case(state)
@@ -71,10 +74,10 @@ module eth_udp_tx #(parameter [47:0] SRC_MAC=48'h02_00_00_00_00_01,
                 if(count==15) begin count<=0; state<=DATA; end
                 else count<=count+1'b1;
             end
-            DATA: begin // 63 bytes = 126 nibbles
+            DATA: begin // header + payload, low nibble first
                 mii_txd<=shift[3:0]; shift<=shift>>4;
                 crc<=crc_nibble(crc,shift[3:0]);
-                if(count==125) begin count<=0; state<=FCS; end
+                if(count==DATA_NIBBLES-1) begin count<=0; state<=FCS; end
                 else count<=count+1'b1;
             end
             FCS: begin

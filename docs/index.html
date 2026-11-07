@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPGA flow-field warehouse robot</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#172337}
+  .video{position:relative;padding-bottom:56.25%;height:0;margin:1rem 0}
+  .video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  img{max-width:100%} table{border-collapse:collapse} td,th{border:1px solid #ccd;padding:.3rem .6rem}
+</style>
+</head>
+<body>
+<h1>An FPGA flow-field brain driving a robot in a warehouse</h1>
+<div class="video">
+  <iframe src="https://www.youtube.com/embed/R98e_o1Yoh4" title="Demo video" allowfullscreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+</div>
+<p>A Digilent Nexys 3 (Spartan-6 FPGA) is the whole brain of a robot simulated in Webots. The robot finds boxes and moving carts from four depth cameras, rebuilds a cost field and flow field every frame, and the board sends back the wheel speeds over Ethernet.</p>
+<img src="hw_side_by_side.gif" alt="What the FPGA believed (left) and the robot's-eye view (right), same run, 3x speed">
+<h2>Results</h2>
+<table>
+<tr><th>Fits and runs at 100 MHz</th><td>2,768 LUTs (30%), worst slack +0.125 ns, 0 timing errors</td></tr>
+<tr><th>Verilog = Python model</th><td>identical replies on 5,346 simulated frames, 2,246 as Ethernet frames, 1,500 on the board</td></tr>
+<tr><th>Real board in the loop</th><td>three random warehouses solved (72 s, 103 s, 69 s), no packet lost</td></tr>
+<tr><th>Speed</th><td>at most 0.37 ms per 32 ms frame</td></tr>
+<tr><th>60 random warehouses</th><td>all reached the goal; 53 with no contact</td></tr>
+</table>
+<p><img src="regression.png" alt="60 random warehouses"></p>
+<p><a href="RESULTS.md">Full results</a> · <a href="flowfield.md">How it works</a></p>
+</body>
+</html>

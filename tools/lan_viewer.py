@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""Live view of nexys3_top_lan: receives the FPGA's UDP broadcasts over Ethernet.
+"""Live view of the FPGA: receives its UDP broadcasts over Ethernet.
 
-Same 21-byte packet as the UART version, carried in a UDP payload.
+Phase 1 (nexys3_top_lan): the same 21-byte A5 packet as the UART version.
+Phase 2: the 24-byte B5 brain reply (docs/packets.md), from the board or
+from bridge/mock_fpga.py; it is drawn next to the Webots window.
 Click a cell to add or remove a wall there; the FPGA replans if needed.
 """
 import argparse
+import os
 import socket
+import sys
 import time
 import tkinter as tk
 
 from visualize import Viewer
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ref'))
+from packets import parse_reply  # noqa: E402
 
 
 def parse_packet(packet):
@@ -43,6 +50,13 @@ def print_packets(sock):
     print(f'listening on UDP port {sock.getsockname()[1]} (Ctrl-C to stop)')
     while True:
         data, (ip, _) = sock.recvfrom(2048)
+        reply = parse_reply(data)
+        if reply:
+            key = {k: v for k, v in reply.items() if k != 'frame'}
+            if key != last:
+                last = key
+                print(f'{time.strftime("%X")} {ip}: frame={reply["frame"]} {describe(reply)}')
+            continue
         state = parse_packet(data)
         if state is None:
             print(f'{time.strftime("%X")} {ip}: ignored {len(data)} bytes')
@@ -53,6 +67,12 @@ def print_packets(sock):
         robot, found, length, explored, walls, path = state
         print(f'{time.strftime("%X")} {ip}: robot={robot} found={found} '
               f'route={length} explored={explored} walls={walls:016x} path={path:016x}')
+
+
+def describe(reply):
+    return (f'robot={reply["robot_cell"]} target={reply["target_cell"]} '
+            f'{reply["status"]} wheels={reply["left"]:+d}/{reply["right"]:+d} '
+            f'replans={reply["replans"]}')
 
 
 def live(view, sock, target):
@@ -80,6 +100,14 @@ def live(view, sock, target):
                 data, (ip, _) = sock.recvfrom(2048)
             except BlockingIOError:
                 break
+            reply = parse_reply(data)
+            if reply:
+                last_packet[0] = time.monotonic()
+                view.obstacles, view.path = reply['obstacles'], reply['route']
+                view.robot, view.explored = reply['robot_cell'], 0
+                view.label.config(text=f'FPGA {ip}: {describe(reply)}')
+                view.draw()
+                continue
             state = parse_packet(data)
             if state is None:
                 continue

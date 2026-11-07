@@ -2,11 +2,55 @@
 
 This is a personal project. I got a Digilent Nexys 3 board (Spartan-6 XC6SLX16) for EE 541, Design of Digital Systems, and I wanted to build something on it that goes beyond the class labs. So I made a small path planner in Verilog.
 
+## Latest: an FPGA flow-field brain driving a robot in a warehouse
+
+**[Watch the demo on YouTube](https://youtu.be/R98e_o1Yoh4)**
+
+[![Watch the demo on YouTube](https://img.youtube.com/vi/R98e_o1Yoh4/maxresdefault.jpg)](https://youtu.be/R98e_o1Yoh4)
+
+(GitHub does not allow an embedded player in a README, so the picture links to the video. An embedded player is on the [demo page](docs/index.html) if GitHub Pages is switched on.)
+
+A Digilent **Nexys 3 (Spartan-6 FPGA)** is the whole brain of a robot simulated in **Webots**. The robot starts at a random spot in a maze-like warehouse and has to reach the delivery zone. It is only told where the shelving racks are. It finds the boxes and the moving carts itself, from four small depth cameras, and the FPGA works out which things are boxes and which are moving. Every frame (32 ms) the FPGA rebuilds a **cost field and a flow field** (the idea comes from my PCB flow-field router) and sends back the wheel speeds. The Mac only moves bytes over an Ethernet cable and runs the simulator; it makes no decisions.
+
+![what the FPGA believed (left) and the robot's-eye view (right), the same run, in sync](docs/hw_side_by_side.gif)
+
+*Both halves are the same run (seed 3, real Nexys 3 in the loop), played from one clock at 3x speed. Left: what the robot did and what the FPGA believed. The arrows are the flow field, orange squares are cells it thinks are blocked, red squares are the real carts. Right: the robot's-eye view.*
+
+### Results at a glance
+
+| | |
+|---|---|
+| Fits and runs at 100 MHz | 2,768 LUTs (30% of the chip), worst timing slack +0.125 ns, 0 timing errors (`artifacts/ff_timing.twr`) |
+| Verilog = Python model | identical replies on every frame: 5,346 frames in simulation, 2,246 as real Ethernet frames, 1,500 on the board |
+| Real board in the loop | Webots drove its robot through the FPGA to the goal in three random warehouses (72 s, 103 s, 69 s), no packet lost |
+| Speed | at most 0.37 ms of compute per 32 ms frame; Mac - board - Mac round trip 0.58 ms |
+| 60 random warehouses | all 60 reached the goal (median 45 s); 53 with no contact at all, 7 with a brief contact with a moving cart (6) or a rack corner (1) |
+
+| | |
+|---|---|
+| ![60 random warehouses](media/regression.png) | ![the paths of three real runs](media/trajectories.png) |
+| ![how the design got to fit](media/fpga_journey.png) | ![clocks per frame](media/clocks.png) |
+
+More: [docs/RESULTS.md](docs/RESULTS.md) (all numbers, and what went wrong on the way), [docs/flowfield.md](docs/flowfield.md) (how it works, how to build and run it), [docs/packets_ff.md](docs/packets_ff.md) (the packets).
+
+### How it is built
+
+- `rtl/` the Verilog: `ff_brain.v` (the brain), `eth_ff_rx.v` (packet receiver), `nexys3_top_ff.v` (board top level), `eth_udp_tx.v` (transmitter), `ff_tables.v` (generated tables). `constraints/nexys3_ff.ucf` has the pins and the 100 MHz clock.
+- `ref/` the Python **golden model** the Verilog must match bit for bit, the warehouse simulator and the tests.
+- `tb/` the testbenches (the brain alone, and the whole top level over real Ethernet frames).
+- `webots/` the world generator and the robot and supervisor controllers; `bridge/` the UDP link and a mock board; `tools/` a live viewer and the one-command demo; `fpga/` the ISE build and programming scripts.
+- `artifacts/` the final bitstream, timing report and utilisation report. `media/` the graphs. `bfs/` the earlier BFS version, kept as a backup.
+
+To reproduce the checks without a board: `python3 ref/test_flowfield.py --runs 5`, then the Icarus Verilog commands in [docs/flowfield.md](docs/flowfield.md). The videos are not in the repository (they are large); the demo is on YouTube.
+
+# Earlier work: BFS on an 8x8 grid
+
 The idea is simple. There is an 8x8 grid. A robot starts at the top-left cell (0) and has to reach the bottom-right cell (63). The FPGA finds the shortest route with breadth-first search (BFS), moving only up, down, left, or right. Then the robot follows that route one cell at a time. If an obstacle shows up on the part of the route it has not walked yet, the robot stops and the FPGA plans again from where the robot is standing.
 
 There is no real robot or motor here. The robot is just a register on the FPGA that holds the current cell. The board sends the robot position, the obstacle map, and the route to my laptop over USB-UART, and a Python script draws the grid.
 
 So far I have tested this in simulation. The steps for the board are further down.
+
 
 ## What is in the repo
 
@@ -140,3 +184,7 @@ On the Mac:
 If the Mac's Ethernet is a USB adapter and you also run a VM in UTM, do not pass the adapter to the VM (only the Digilent board). Otherwise macOS loses the wired port.
 
 If nothing shows up, check the raw frames with `sudo tcpdump -i en5 -e -XX ether src 02:00:00:00:00:01` (use your adapter's name from step 2). If tcpdump sees frames but the viewer does not, the macOS firewall is blocking Python. If tcpdump sees nothing, check that the link LEDs on the RJ-45 jack are on and that LED3 on the board is changing.
+
+## License
+
+Copyright (c) 2026 aknahin. **All rights reserved.** This is my own work. No permission is given to copy, publish, modify or reuse it in any medium; it may be viewed for evaluation. See [LICENSE](LICENSE). Third-party tools (Webots, Xilinx ISE, Icarus Verilog) and the Digilent reference pin constraints keep their own licenses.
